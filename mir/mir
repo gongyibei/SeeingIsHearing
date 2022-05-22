@@ -1,0 +1,6 @@
+#!/home/yibei/anaconda3/bin/python3
+from core import MIR
+from onset.detector import OnsetDetector
+from basic.fft import RTFFT
+MIR(RTFFT()).run()
+# MIR(OnsetDetector()).run()

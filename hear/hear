@@ -1,0 +1,3 @@
+#!/bin/sh
+parec --channels=1 --rate=16000
+

@@ -1,0 +1,5 @@
+#!/bin/sh
+FROM=pulseaudio
+WHERE=led
+
+./hear/hear $FROM | ./see/see $WHERE

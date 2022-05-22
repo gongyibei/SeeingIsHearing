@@ -1,0 +1,139 @@
+import sys
+import time 
+import os
+import threading
+import numpy as np
+import random
+import socket
+import math
+from mir.onset.modal.detector import OnsetDetector
+import scipy.io.wavfile as wav
+#  import librosa
+
+
+
+# Music visualizer
+class MuV(Client):
+    def __init__(self):
+        self.sr = 16000
+        self.frame_size = 128
+        self.stream = os.fdopen(sys.stdin.fileno(), 'rb', buffering=0)
+
+        # setup udp clinet
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+        self.addr = ('192.168.31.7', 1234)
+
+        # onset detector
+        self.detector = OnsetDetector(self.frame_size)
+
+        # syncing the music stream
+        threading.Thread(target=self.sync).start()
+
+    def sync(self):
+        while 1:
+            self.stream.read()
+
+    def light(self, pitch, bright):
+        self.client.sendto((chr(pitch) + chr(bright)).encode(), self.addr)
+
+
+    def get_pitch(self, data):
+        return random.randint(0, 128)
+
+    
+    def get_bright(self, data):
+        try:
+            data = np.frombuffer(data, dtype='int16')
+            energy = np.sum(data**2)/len(data)
+        except:
+            energy = 0
+
+        energy = max(energy, 0)
+        energy = math.log(energy + 1)
+        if energy < 7.5:
+            energy = 0
+
+        #  if energy > M:
+        #      M = energy
+        #  print(M)
+        return min(int(energy*12), 127)
+
+    def data_to_frame(self, data):
+        data = np.frombuffer(data, dtype='int16')
+        frame = np.zeros((self.frame_size), dtype=np.int16)
+        frame[:len(data)] = data
+        return frame
+
+    def onset(self, data):
+        frame = self.data_to_frame(data)
+        return self.detector(frame//100)
+
+    def record(datas):
+        frames = []
+        for data in datas:
+            data = data[:len(data)//2*2]
+
+            data = np.frombuffer(data, dtype='int16')
+            frame = np.zeros((256), dtype=np.int16)
+            frame[:len(data)] = data
+            frames.append(frame)
+
+            #  onset, odf_val = self.onset(data)
+            #  print(len(data), data[0], onset, odf_val)
+
+            #  pitch = self.get_pitch(data)
+            #  if onset:
+            #      bright = 100
+            #  else:
+            #      bright = 0
+
+            #  #  bright = self.get_bright(data)
+            #  self.light(pitch, bright)
+        data = np.hstack(frames)
+        wav.write('./rec.wav', 44100, data)
+
+
+    def run(self):
+        M = 300
+        K = 126
+        low = 200
+        high = 300
+
+        a = int(low/(self.sr/self.frame_size))
+        b = int(high/(self.sr/self.frame_size))
+        #  print(a, b)
+        while 1:
+            time.sleep(0.01)
+            data = self.stream.read(self.frame_size*2)
+            data = data[:len(data)//2*2]
+            frame = self.data_to_frame(data)
+            feat = np.abs(np.fft.fft(frame))**2//10000
+
+
+
+
+
+            val = sum(feat[a:b])/(b - a)
+            #  print(val)
+            
+
+            
+            val = val**0.5
+            #  print(val)
+            #  onset, odf_val = self.onset(data)
+
+            #  M = max(M*0.99 + val*0.01, M)
+            L = min(int(val/M*K), K)
+            #  print(L)
+            if L < 50:
+                L = 0
+
+            #  print(len(data), data[0])
+            print( '\n'*22 +  '-'* L  + '\n'*22)
+            #  print(len(data), data[0], onset, '-'* min(int((odf_val)/100), 100))
+
+
+            pitch = self.get_pitch(data)
+            #  bright = self.get_bright(data)
+            self.light(pitch, L)
+MuV().run()
